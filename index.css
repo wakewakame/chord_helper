@@ -1,0 +1,19 @@
+* {
+  margin: 0px;
+  border: 0px;
+  padding: 0px;
+}
+body {
+  color: #333;
+}
+.center {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+.center>* {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
