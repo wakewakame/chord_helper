@@ -19,6 +19,7 @@ const create_osc = async () => {
             phase: 0.0
           };
         });
+        this.origin = 0;
         this.port.onmessage = (event) => {
           if (event.data.operation === "press") {
             this.keys[event.data.key].target_verocity = event.data.velocity ?? 1.0;
@@ -28,6 +29,9 @@ const create_osc = async () => {
           }
           if (event.data.operation === "reset") {
             this.keys = this.keys.map(key => key.target_verocity = 0.0);
+          }
+          if (event.data.operation === "origin") {
+            this.origin = event.data.origin;
           }
         };
       }
@@ -54,7 +58,7 @@ const create_osc = async () => {
               key.phase = 0;
               return;
             }
-            const hz = 440 * Math.pow(2, (note - 69) / 12);
+            const hz = 440 * Math.pow(2, (note - 69 + this.origin) / 12);
             wave += Math.sin(hz * 2 * Math.PI * (key.phase++) / sampleRate) * key.velocity;
           });
           for(let channel = 0; channel < output.length; channel++) {
@@ -78,6 +82,9 @@ const create_osc = async () => {
       osc.port.postMessage({ operation: "release", key: key });
     });
   };
+  const origin = (key) => {
+    osc.port.postMessage({ operation: "origin", origin: key });
+  };
 
   /// DEBUG
   window.navigator.requestMIDIAccess().then(midi => {
@@ -94,7 +101,7 @@ const create_osc = async () => {
   });
   /// DEBUG
 
-  return { press, release };
+  return { press, release, origin };
 };
 
 const microphone = async (callback) => {

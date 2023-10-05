@@ -12,6 +12,7 @@
 		  <div id="scale">
         <h1>1. スケール/コードの特定</h1>
         <p>メロディに登場するキーをすべて選んでください</p>
+        <p>key: <input type="number" class="origin" value="0" style="width: 48px;"></input></p>
         <div class="keyboard"></div>
         <div class="spectrum"></div>
         <div class="candidates">
@@ -21,8 +22,14 @@
           <div class="chord"></div>
         </div>
 		  </div>
+		  <div id="pallet">
+        <h1>2. コードパレットの作成</h1>
+        <p>使うコードをスペース区切りで入力してください</p>
+        <p>chords: <input class="chords" value="" style="width: 520px; border: solid 1px #333; padding: 2px;"></input></p>
+        <div class="preview"></div>
+		  </div>
 		  <div id="editor">
-        <h1>2. コード進行の作成</h1>
+        <h1>3. コード進行の作成</h1>
         <div>
           <p>BPM: <input class="bpm" type="number" value="120"></input><p>
           <textarea class="chord" style="width: 720px; height: 180px; font-size: 24px; border: solid 1px #333; padding: 2px;"></textarea><br>
@@ -38,14 +45,13 @@
           - コード先頭に +2C や -3D# などの数値を指定するとコードが回転する<br>
           - たとえば +2C ではドミソの先頭2音が 1 オクターブ上がる<br>
           コメント:<br>
-          - 先頭が記号 # で始まる行はコメントとみなされ、単に無視される
-
+          - 先頭が記号 # で始まる行はコメントとみなされ、単に無視される<br>
           <br>
           入力例<br>
-          G - -4B7 -<br>
-          Em - -1G#dim -<br>
-          CM7 - -1G -<br>
-          -3Am7<br>
+          # コメント<br>
+          C - Dm - Em - F -<br>
+          G Am<br>
+          Bdim - +3C -<br>
         </p>
 		  </div>
 		</div>

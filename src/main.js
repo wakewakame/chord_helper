@@ -124,6 +124,30 @@ const keyboard = (keys, callback) => {
 	return keysElem;
 };
 
+document.querySelector("#pallet .chords").addEventListener("change", (e) => {
+  const chords = e.target.value.split(/\s+/);
+  const previewElem = document.querySelector("#pallet .preview");
+  previewElem.style.width = "720px";
+  while (previewElem.firstChild) {
+    previewElem.removeChild(previewElem.lastChild);
+  }
+  chords.map(chord.from_name).forEach((notes, index) => {
+    notes = notes.map(note => (note + 12 * 6));
+    const button = document.createElement("button");
+    button.textContent = chords[index];
+    button.style.margin = "2px";
+    button.addEventListener("pointerdown", (e) => {
+      osc?.press(notes);
+      e.target.setPointerCapture(e.pointerId);
+      e.target.addEventListener("pointerup", () => {
+        osc?.release(notes);
+        e.target.releasePointerCapture(e.pointerId);
+      }, { once: true });
+    });
+    previewElem.appendChild(button);
+  });
+});
+
 let osc = null;
 let oscInit = false;
 const init = async () => {
@@ -150,6 +174,10 @@ document.querySelector("#scale .keyboard").appendChild(
 	})
 );
 document.querySelector("#scale .spectrum").appendChild(spectrum());
+document.querySelector("#scale .origin").addEventListener("change", (e) => {
+  const origin = Number(e.target.value);
+  if (!isNaN(origin)) { osc?.origin(origin); }
+});
 
 document.querySelector("#editor .play").addEventListener("click", async () => {
   await init();
@@ -157,7 +185,7 @@ document.querySelector("#editor .play").addEventListener("click", async () => {
     .split(/\r\n|\r|\n/)
     .filter(measure => (measure.length === 0 || measure.slice(0, 1) !== "#"))
     .map(measure => measure.split(/\s+/).filter(chord => (chord !== "")).map(chord.from_name));
-  const bpm = document.querySelector("#editor .bpm").value;
+  const bpm = Number(document.querySelector("#editor .bpm").value);
   const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
   let current = [];
   let playCancel = false;
