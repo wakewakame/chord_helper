@@ -1,6 +1,9 @@
 let audio_context = null;
 
 const init = async () => {
+  if (audio_context !== null) {
+    return;
+  }
   audio_context = new (window.AudioContext || window.webkitAudioContext)();
 };
 
@@ -9,23 +12,22 @@ const create_osc = async () => {
     class OscProcessor extends AudioWorkletProcessor {
       constructor() {
         super();
-        this.keys = [
-          // { phase: 0..Infinity, key: 0..127, velocity: 0.0..1.0 }, ...
-        ];
+        this.keys = [...Array(128)].map(_ => {
+          return {
+            target_verocity: 0.0,
+            velocity: 0.0,
+            phase: 0.0
+          };
+        });
         this.port.onmessage = (event) => {
           if (event.data.operation === "press") {
-            this.keys = this.keys.filter(key => (key.key !== event.data.key));
-            this.keys.push({
-              phase: 0,
-              key: event.data.key,
-              velocity: event.data.velocity ?? 1.0
-            })
+            this.keys[event.data.key].target_verocity = event.data.velocity ?? 1.0;
           }
           if (event.data.operation === "release") {
-            this.keys = this.keys.filter(key => (key.key !== event.data.key));
+            this.keys[event.data.key].target_verocity = 0.0;
           }
           if (event.data.operation === "reset") {
-            this.keys = [];
+            this.keys = this.keys.map(key => key.target_verocity = 0.0);
           }
         };
       }
@@ -34,17 +36,29 @@ const create_osc = async () => {
           return true;
         }
         const output = outputs[0];
-        for(let channel = 0; channel < output.length; channel++) {
-          for(let index = 0; index < output[channel].length; index++) {
-            output[channel][index] = 0;
-            this.keys.forEach(key => {
-              key.phase += 1;
-              const hz = 440 * Math.pow(2, (key.key - 69) / 12);
-              output[channel][index] +=
-                Math.sin(hz * 2 * Math.PI * key.phase / sampleRate) *
-                key.velocity *
-                (1 - Math.exp(-200 * key.phase / sampleRate));
-            });
+        const length = (output.length > 0) ? Math.min(...(output.map(channel => channel.length))) : 0;
+        const EPSILON = 1e-4;
+        const notes = this.keys
+          .map((key, note) => (key.velocity > EPSILON || key.target_verocity > EPSILON) ? note : null)
+          .filter(note => (note !== null));
+        const velocity_sum = notes.reduce((acc, note) => (acc + this.keys[note].target_verocity), 0);
+        for(let index = 0; index < length; index++) {
+          let wave = 0;
+          notes.forEach(note => {
+            const key = this.keys[note];
+            // 複数キー同時押しの音割れ対策
+            const target_verocity = key.target_verocity / Math.max(1, velocity_sum);
+            // 音の立ち上がりを滑らかにする
+            key.velocity += (target_verocity - key.velocity) * (1e-2 ** (48000 / sampleRate));
+            if (key.velocity <= EPSILON) {
+              key.phase = 0;
+              return;
+            }
+            const hz = 440 * Math.pow(2, (note - 69) / 12);
+            wave += Math.sin(hz * 2 * Math.PI * (key.phase++) / sampleRate) * key.velocity;
+          });
+          for(let channel = 0; channel < output.length; channel++) {
+            output[channel][index] = wave;
           };
         };
         return true;
@@ -54,16 +68,32 @@ const create_osc = async () => {
   `], { type: "text/javascript" })));
   const osc = new AudioWorkletNode(audio_context, "osc-processor");
   osc.connect(audio_context.destination);
-  const press = (keys) => {
-    keys.forEach(key => {
-      osc.port.postMessage({ operation: "press", key: key, velocity: 0.5 / keys.length });
+  const press = (keys, velocity) => {
+    keys.filter(key => (0 <= key && key <= 127)).forEach(key => {
+      osc.port.postMessage({ operation: "press", key: key, velocity: velocity ?? 0.3 });
     });
   };
   const release = (keys) => {
-    keys.forEach(key => {
-      osc.port.postMessage({ operation: "release", key: key, velocity: 0.5 / keys.length });
+    keys.filter(key => (0 <= key && key <= 127)).forEach(key => {
+      osc.port.postMessage({ operation: "release", key: key });
     });
   };
+
+  /// DEBUG
+  window.navigator.requestMIDIAccess().then(midi => {
+    [...Array.from(midi.inputs.values())].forEach(input => {
+      input.onmidimessage = (e) => {
+        if (e.data[0] === 144) {
+          press([e.data[1]], e.data[2] / 127);
+        }
+        else if (e.data[0] === 128) {
+          release([e.data[1]]);
+        }
+      };
+    });
+  });
+  /// DEBUG
+
   return { press, release };
 };
 

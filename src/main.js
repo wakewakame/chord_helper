@@ -60,41 +60,61 @@ const keyboard = (keys, callback) => {
         e.target.releasePointerCapture(e.pointerId);
       }, { once: true });
     });
-    const flagElem = document.createElement("div");
+    const flagElem = document.createElement("input");
+    flagElem.type = "checkbox";
     flagElem.style.width = "16px";
-    flagElem.style.height = "8px";
+    flagElem.style.height = "16px";
     flagElem.style.margin = "auto";
     flagElem.style.boxSizing = "border-box";
     flagElem.style.border = "0px";
     flagElem.style.background = "#0003";
 		flagElem.style.borderRadius = "4px";
 		flagElem.style.bottom = "0px";
-    flagElem.addEventListener("pointerdown", (_) => {
-			const enable = !JSON.parse(keyElem.dataset.enable ?? "false");
-			keyElem.dataset.enable = JSON.stringify(enable);
-    	keyElem.style.background = enable ?
+    flagElem.addEventListener("change", (_) => {
+    	keyElem.style.background = flagElem.checked ?
 				(isWhite ? "#F77F" : "#B33F") :
 				(isWhite ? "#FFFF" : "#333F");
 			const enableKeys = [...Array.from(keysElem.children)]
-				.map((elem, i) => elem.dataset.enable === "true" ? i : null)
-				.filter(i => (i !== null));
+				.map((elem, i) => elem.firstChild.checked ? i : null)
+        .filter(key => key !== null);
 			/// DEBUG
-			const candidatesElem = document.getElementById("candidates");
-      while (candidatesElem.firstChild) {
-        candidatesElem.removeChild(candidatesElem.lastChild);
+			const candidates = chord.candidate(enableKeys);
+			const candidatesElem = document.querySelector("#scale .candidates");
+      candidatesElem.style.width = "720px";
+			const scalesElem = candidatesElem.querySelector(".scale");
+      while (scalesElem.firstChild) {
+        scalesElem.removeChild(scalesElem.lastChild);
       }
-			chord.candidate(enableKeys).forEach(candidate => {
+      candidates["scale"].forEach(candidate => {
 				const button = document.createElement("button");
 				button.textContent = candidate[0];
 				button.style.margin = "2px";
 				button.addEventListener("click", () => {
 					for(let i = 0; i < candidate[1].length + 1; i++) {
 						const lastOffset = (i === candidate[1].length) ? 12 : 0;
-						setTimeout(() => { callback(candidate[1][i % candidate[1].length] + lastOffset, true ); }, 200 * (i + 0));
-						setTimeout(() => { callback(candidate[1][i % candidate[1].length] + lastOffset, false); }, 200 * (i + 1));
+						setTimeout(() => { callback(candidate[1][i % candidate[1].length] + lastOffset, true ); }, 150 * (i + 0));
+						setTimeout(() => { callback(candidate[1][i % candidate[1].length] + lastOffset, false); }, 150 * (i + 1));
 					};
 				});
-        candidatesElem.appendChild(button);
+        scalesElem.appendChild(button);
+			});
+			const chordsElem = document.querySelector(".chord");
+      while (chordsElem.firstChild) {
+        chordsElem.removeChild(chordsElem.lastChild);
+      }
+      candidates["chord"].forEach(candidate => {
+				const button = document.createElement("button");
+				button.textContent = candidate[0];
+				button.style.margin = "2px";
+        button.addEventListener("pointerdown", (e) => {
+          candidate[1].forEach(note => callback(note, true));
+          e.target.setPointerCapture(e.pointerId);
+          e.target.addEventListener("pointerup", () => {
+            candidate[1].forEach(note => callback(note, false));
+            e.target.releasePointerCapture(e.pointerId);
+          }, { once: true });
+        });
+        chordsElem.appendChild(button);
 			});
 			/// DEBUG
     });
@@ -105,22 +125,61 @@ const keyboard = (keys, callback) => {
 };
 
 let osc = null;
-document.getElementById("keyboard").appendChild(
+let oscInit = false;
+const init = async () => {
+	if (!oscInit) {
+    oscInit = true;
+		await audio.init();
+		osc = await audio.create_osc();
+		await audio.microphone((msg) => {
+			const recvInput = msg.input;
+			micStore.sample_rate = msg.sample_rate;
+			const storeInput = micStore.input;
+			for(let micIndex = 0; micIndex < storeInput.length; micIndex++) {
+				const monoIndex = micIndex - (storeInput.length - recvInput.length);
+				storeInput[micIndex] = (monoIndex < 0) ? storeInput[micIndex + recvInput.length] : recvInput[monoIndex];
+			}
+		});
+	}
+};
+
+document.querySelector("#scale .keyboard").appendChild(
 	keyboard(36, async (key, flag) => {
-		if (osc === null) {
-			await audio.init();
-			osc = await audio.create_osc();
-			await audio.microphone((msg) => {
-				const recvInput = msg.input;
-				micStore.sample_rate = msg.sample_rate;
-				const storeInput = micStore.input;
-				for(let micIndex = 0; micIndex < storeInput.length; micIndex++) {
-					const monoIndex = micIndex - (storeInput.length - recvInput.length);
-					storeInput[micIndex] = (monoIndex < 0) ? storeInput[micIndex + recvInput.length] : recvInput[monoIndex];
-				}
-			});
-		}
-		osc[flag ? "press" : "release"]([key + (12 * 6)]);
+    await init();
+		osc?.[flag ? "press" : "release"]([key + (12 * 6)]);
 	})
 );
-document.getElementById("spectrum").appendChild(spectrum());
+document.querySelector("#scale .spectrum").appendChild(spectrum());
+
+document.querySelector("#editor .play").addEventListener("click", async () => {
+  await init();
+  const chords = document.querySelector("#editor .chord").value
+    .split(/\r\n|\r|\n/)
+    .filter(measure => (measure.length === 0 || measure.slice(0, 1) !== "#"))
+    .map(measure => measure.split(/\s+/).filter(chord => (chord !== "")).map(chord.from_name));
+  const bpm = document.querySelector("#editor .bpm").value;
+  const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+  let current = [];
+  let playCancel = false;
+  document.querySelector("#editor .stop").addEventListener("click", async () => {
+    playCancel = true;
+    osc?.release(current);
+  }, { once: true });
+  for(let line of chords) {
+    const duration = (4 / Math.max(1, line.length)) * (60000 / bpm);
+    if (line.length > 0) {
+      for(let chord of line) {
+        current = chord.map(note => (note + (12 * 6)));
+        osc?.press(current);
+        await sleep(duration);
+        osc?.release(current);
+        if (playCancel) return;
+        current = [];
+      }
+    }
+    else {
+      if (playCancel) return;
+      await sleep(duration);
+    }
+  }
+});

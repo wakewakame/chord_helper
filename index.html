@@ -8,10 +8,46 @@
 <body>
   <div class="center">
 		<div>
-			<h1>メロディに登場するキーをすべて選んでください</h1>
-			<div id="keyboard"></div>
-			<div id="spectrum"></div>
-			<div id="candidates"></div>
+      <div style="height: 64px;"></div>
+		  <div id="scale">
+        <h1>1. スケール/コードの特定</h1>
+        <p>メロディに登場するキーをすべて選んでください</p>
+        <div class="keyboard"></div>
+        <div class="spectrum"></div>
+        <div class="candidates">
+          <p>スケールの候補 (クリックで再生されます)</p>
+          <div class="scale"></div>
+          <p>コードの候補 (クリックで再生されます)</p>
+          <div class="chord"></div>
+        </div>
+		  </div>
+		  <div id="editor">
+        <h1>2. コード進行の作成</h1>
+        <div>
+          <p>BPM: <input class="bpm" type="number" value="120"></input><p>
+          <textarea class="chord" style="width: 720px; height: 180px; font-size: 24px; border: solid 1px #333; padding: 2px;"></textarea><br>
+          <button class="play" style="width: 80px; height: 20px;">play</button>
+          <button class="stop" style="width: 80px; height: 20px;">stop</button>
+        </div>
+        <p>
+          入力方法<br>
+          基本:<br>
+          - 1 行にスペース区切りで複数のコードもしくは無音(ハイフン)を記入する<br>
+          - 1 行に 4 つ並べると 4 分音符、 8 つ並べると 8 分音符になる<br>
+          特殊:<br>
+          - コード先頭に +2C や -3D# などの数値を指定するとコードが回転する<br>
+          - たとえば +2C ではドミソの先頭2音が 1 オクターブ上がる<br>
+          コメント:<br>
+          - 先頭が記号 # で始まる行はコメントとみなされ、単に無視される
+
+          <br>
+          入力例<br>
+          G - -4B7 -<br>
+          Em - -1G#dim -<br>
+          CM7 - -1G -<br>
+          -3Am7<br>
+        </p>
+		  </div>
 		</div>
   </div>
   <script type="module" src="./src/main.js"></script>
